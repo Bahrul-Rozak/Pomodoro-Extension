@@ -1,163 +1,124 @@
 let timer;
 let isRunning = false;
-let minutes = 25;
-let seconds = 0;
-let isWorkSession = true;
+let timeRemaining = 25 * 60; // 25 minutes in seconds
 let workDuration = 25;
 let breakDuration = 5;
-
-const timeDisplay = document.getElementById("time-display");
-const status = document.getElementById("status");
-const notes = document.getElementById("notes");
-const notesList = document.getElementById("notes-list");
-const historyList = document.getElementById("history-list");
-const todo = document.getElementById("todo");
-const todoList = document.getElementById("todo-list");
-
-document.getElementById("start-button").addEventListener("click", startStopTimer);
-document.getElementById("reset-button").addEventListener("click", resetTimer);
-document.getElementById("save-note-button").addEventListener("click", saveNote);
-document.getElementById("save-todo-button").addEventListener("click", saveTodo);
-
-let history = JSON.parse(localStorage.getItem('history')) || [];
 let savedNotes = JSON.parse(localStorage.getItem('notes')) || [];
 let savedTodos = JSON.parse(localStorage.getItem('todos')) || [];
+let soundEnabled = true;
 
+const timeDisplay = document.getElementById("time-display");
+const startButton = document.getElementById("start-btn");
+const resetButton = document.getElementById("reset-btn");
+const saveNoteButton = document.getElementById("save-note-btn");
+const saveTodoButton = document.getElementById("save-todo-btn");
+const notesInput = document.getElementById("notes");
+const todoInput = document.getElementById("todo");
+const notesList = document.getElementById("notes-list");
+const todoList = document.getElementById("todo-list");
+const soundToggle = document.getElementById("sound-toggle");
+
+const ticTocSound = new Audio('tic-toc.mp3'); // Suara tic-toc
+
+// Load saved notes and tasks
 function loadNotes() {
-  notesList.innerHTML = '';
-  savedNotes.forEach((note, index) => {
-    const li = document.createElement('li');
-    li.innerHTML = `${note} <button onclick="deleteNote(${index})">Hapus</button>`;
-    notesList.appendChild(li);
-  });
+    notesList.innerHTML = '';
+    savedNotes.forEach(note => {
+        const li = document.createElement('li');
+        li.textContent = note;
+        notesList.appendChild(li);
+    });
 }
 
 function loadTodos() {
-  todoList.innerHTML = '';
-  savedTodos.forEach((todoItem, index) => {
-    const li = document.createElement('li');
-    li.innerText = todoItem;
-    todoList.appendChild(li);
-  });
+    todoList.innerHTML = '';
+    savedTodos.forEach(todo => {
+        const li = document.createElement('li');
+        li.textContent = todo;
+        todoList.appendChild(li);
+    });
 }
 
-function loadHistory() {
-  historyList.innerHTML = '';
-  history.forEach((session, index) => {
-    const li = document.createElement('li');
-    li.innerText = session;
-    historyList.appendChild(li);
-  });
+// Update the timer display
+function updateTimeDisplay() {
+    const minutes = Math.floor(timeRemaining / 60);
+    const seconds = timeRemaining % 60;
+    timeDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+    // Update the browser tab title with the remaining time
+    document.title = `Pomodoro Timer - ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-function startStopTimer() {
-  if (isRunning) {
-    clearInterval(timer);
-    document.getElementById("start-button").innerText = "Mulai";
-    addHistory("Sesi selesai!");
-    playNotificationSound();
-  } else {
-    workDuration = document.getElementById("work-duration").value;
-    breakDuration = document.getElementById("break-duration").value;
-    timer = setInterval(updateTime, 1000);
-    document.getElementById("start-button").innerText = "Jeda";
-    playTickSound();  
-  }
-  isRunning = !isRunning;
+// Start the timer
+function startTimer() {
+    if (isRunning) return;
+    isRunning = true;
+    timer = setInterval(() => {
+        timeRemaining--;
+        updateTimeDisplay();
+        if (soundEnabled) {
+            ticTocSound.play(); // Putar suara tic-toc setiap detik
+        }
+        if (timeRemaining <= 0) {
+            clearInterval(timer);
+            isRunning = false;
+            if (soundEnabled) {
+                playSound();
+            }
+            timeRemaining = workDuration * 60; // Reset to work duration
+            alert("Sesi selesai!");
+        }
+    }, 1000);
 }
 
-function updateTime() {
-  if (seconds === 0) {
-    if (minutes === 0) {
-      if (isWorkSession) {
-        minutes = breakDuration;
-        status.innerText = "Istirahat! Waktunya santai.";
-        isWorkSession = false;
-        playNotificationSound();
-      } else {
-        minutes = workDuration;
-        status.innerText = "Waktu untuk bekerja!";
-        isWorkSession = true;
-        playNotificationSound();
-      }
-    } else {
-      minutes--;
-      seconds = 59;
-    }
-  } else {
-    seconds--;
-  }
-
-  timeDisplay.innerText = `${formatTime(minutes)}:${formatTime(seconds)}`;
-}
-
-function formatTime(time) {
-  return time < 10 ? `0${time}` : time;
-}
-
+// Reset the timer
 function resetTimer() {
-  clearInterval(timer);
-  minutes = workDuration;
-  seconds = 0;
-  isRunning = false;
-  timeDisplay.innerText = `${formatTime(minutes)}:00`;
-  status.innerText = "Siap untuk bekerja?";
-  document.getElementById("start-button").innerText = "Mulai";
-  stopTickSound();  
+    clearInterval(timer);
+    isRunning = false;
+    timeRemaining = workDuration * 60;
+    updateTimeDisplay();
 }
 
-function addHistory(session) {
-  history.push(session);
-  localStorage.setItem('history', JSON.stringify(history));
-  loadHistory();
-}
-
+// Save note to localStorage
 function saveNote() {
-  const noteText = notes.value.trim();
-  if (noteText) {
-    savedNotes.push(noteText);
-    localStorage.setItem('notes', JSON.stringify(savedNotes));
-    notes.value = ''; 
-    loadNotes();
-  }
+    const note = notesInput.value.trim();
+    if (note) {
+        savedNotes.push(note);
+        localStorage.setItem('notes', JSON.stringify(savedNotes));
+        notesInput.value = '';
+        loadNotes();
+    }
 }
 
-function deleteNote(index) {
-  savedNotes.splice(index, 1);
-  localStorage.setItem('notes', JSON.stringify(savedNotes));
-  loadNotes();
-}
-
+// Save todo to localStorage
 function saveTodo() {
-  const todoText = todo.value.trim();
-  if (todoText) {
-    savedTodos.push(todoText);
-    localStorage.setItem('todos', JSON.stringify(savedTodos));
-    todo.value = ''; 
-    loadTodos();
-  }
+    const todo = todoInput.value.trim();
+    if (todo) {
+        savedTodos.push(todo);
+        localStorage.setItem('todos', JSON.stringify(savedTodos));
+        todoInput.value = '';
+        loadTodos();
+    }
 }
 
-function playNotificationSound() {
-  let audio = new Audio('https://www.soundjay.com/button/beep-07.wav');
-  audio.play();
+// Toggle sound preference
+soundToggle.addEventListener("change", () => {
+    soundEnabled = soundToggle.checked;
+});
+
+// Play sound when session is finished
+function playSound() {
+    const audio = new Audio('https://www.soundjay.com/button/beep-07.wav');
+    audio.play();
 }
 
-function playTickSound() {
-  if (!window.tickSound) {
-    window.tickSound = new Audio('tic-toc.mp3'); 
-    window.tickSound.loop = true; 
-  }
-  window.tickSound.play();
-}
+// Event listeners
+startButton.addEventListener("click", startTimer);
+resetButton.addEventListener("click", resetTimer);
+saveNoteButton.addEventListener("click", saveNote);
+saveTodoButton.addEventListener("click", saveTodo);
 
-function stopTickSound() {
-  if (window.tickSound) {
-    window.tickSound.pause(); 
-    window.tickSound.currentTime = 0; 
-  }
-}
-
+// Initialize
+updateTimeDisplay();
 loadNotes();
 loadTodos();
-loadHistory();
